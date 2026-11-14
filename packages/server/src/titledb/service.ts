@@ -1,8 +1,9 @@
 /**
  * Optional titledb import: names, DLC base games, latest versions, and the details the library can
  * be sorted and filtered by (release dates, languages, regions, age rating, players). An optional
- * versions list adds when each update came out. Never used as a download source. The data is
- * stored as imported and applied when the library is read (titledb-join.ts), so the enabled switch
+ * versions list adds known update versions, dates, and optional byte sizes. Never used as a download
+ * source. The data is stored as imported and applied when the library is read (titledb-join.ts), so
+ * the enabled switch
  * and refreshes take effect without re-scanning.
  */
 import { readFile } from "node:fs/promises";
@@ -34,6 +35,7 @@ const EntrySchema = z
     baseId: lenient(z.string()),
     applicationId: lenient(z.string()),
     releaseDate: lenient(z.union([z.number(), z.string()])),
+    size: lenient(z.union([z.number(), z.string()])),
     languages: lenient(z.array(z.string())),
     regions: lenient(z.array(z.string())),
     rating: lenient(z.number().int().min(0).max(99)),
@@ -72,6 +74,42 @@ export function parseReleaseDate(value: number | string | undefined): number | n
   return month >= 1 && month <= 12 && day >= 1 && day <= 31 ? date : null;
 }
 
+/** A byte size from titledb, which has appeared as either a JSON number or a decimal string. */
+export function parseContentSize(value: number | string | undefined): number | null {
+  if (value === undefined) return null;
+  const raw = String(value).trim();
+  if (!/^\d+$/.test(raw)) return null;
+  const size = Number(raw);
+  return Number.isSafeInteger(size) && size >= 0 ? size : null;
+}
+
+export interface TitledbVersionInfo {
+  releaseDate: number | null;
+  size: number | null;
+}
+
+function parseVersionInfo(value: unknown): TitledbVersionInfo {
+  if (typeof value === "number" || typeof value === "string") {
+    return { releaseDate: parseReleaseDate(value), size: null };
+  }
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const entry = value as Record<string, unknown>;
+    const rawDate = entry.releaseDate ?? entry.date;
+    const rawSize = entry.size;
+    return {
+      releaseDate:
+        typeof rawDate === "number" || typeof rawDate === "string"
+          ? parseReleaseDate(rawDate)
+          : null,
+      size:
+        typeof rawSize === "number" || typeof rawSize === "string"
+          ? parseContentSize(rawSize)
+          : null,
+    };
+  }
+  return { releaseDate: null, size: null };
+}
+
 /** Distinct codes, cleaned up and sorted, as stored: a JSON array, or null when there are none. */
 function codeList(
   values: string[] | undefined,
@@ -89,27 +127,26 @@ function codeList(
 
 /**
  * A versions list, like blawar's versions.json: `{ "<title ID>": { "<version>": "YYYY-MM-DD" } }`.
- * Keys may be the game's ID or its update's; both are filed under the game.
+ * Values may also be objects with `releaseDate` or `date` and an optional byte `size`. Keys may be
+ * the game's ID or its update's; both are filed under the game.
  */
-export function parseVersionsJson(text: string): Map<string, Map<number, number | null>> {
+export function parseVersionsJson(text: string): Map<string, Map<number, TitledbVersionInfo>> {
   const parsed: unknown = JSON.parse(text);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("The versions list must be a JSON object keyed by title ID");
   }
-  const byTitle = new Map<string, Map<number, number | null>>();
+  const byTitle = new Map<string, Map<number, TitledbVersionInfo>>();
   for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
     const titleId = normalizeTitleId(key);
     if (!titleId || !value || typeof value !== "object" || Array.isArray(value)) continue;
     const appId =
       inferTypeFromTitleId(titleId) === "patch" ? applicationIdForPatch(titleId) : titleId;
-    const versions = byTitle.get(appId) ?? new Map<number, number | null>();
-    for (const [rawVersion, rawDate] of Object.entries(value as Record<string, unknown>)) {
+    const versions = byTitle.get(appId) ?? new Map<number, TitledbVersionInfo>();
+    for (const [rawVersion, rawInfo] of Object.entries(value as Record<string, unknown>)) {
       if (!/^\d{1,10}$/.test(rawVersion)) continue;
-      const date =
-        typeof rawDate === "string" || typeof rawDate === "number"
-          ? parseReleaseDate(rawDate)
-          : null;
-      versions.set(Number(rawVersion), date);
+      const version = Number(rawVersion);
+      if (!Number.isSafeInteger(version)) continue;
+      versions.set(version, parseVersionInfo(rawInfo));
     }
     if (versions.size > 0) byTitle.set(appId, versions);
   }
@@ -202,7 +239,7 @@ export class TitledbService {
       const text = await this.#read(source);
       const versions = versionsSource
         ? parseVersionsJson(await this.#read(versionsSource, "the versions list"))
-        : new Map<string, Map<number, number | null>>();
+        : new Map<string, Map<number, TitledbVersionInfo>>();
       this.#importJson(text, versions);
       putSetting(this.#db, ERROR_KEY, null);
     } catch (err) {
@@ -222,7 +259,7 @@ export class TitledbService {
     return readFile(source, "utf8");
   }
 
-  #importJson(text: string, versionDates: Map<string, Map<number, number | null>>): void {
+  #importJson(text: string, versionDates: Map<string, Map<number, TitledbVersionInfo>>): void {
     const parsed: unknown = JSON.parse(text);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       throw new Error("Titledb must be a JSON object keyed by title ID or eShop ID");
@@ -247,6 +284,7 @@ export class TitledbService {
         latestVersion: entry.data.version ?? previous?.latestVersion ?? null,
         applicationId: normalizeTitleId(entry.data.applicationId ?? entry.data.baseId ?? ""),
         releaseDate: parseReleaseDate(entry.data.releaseDate) ?? previous?.releaseDate ?? null,
+        size: parseContentSize(entry.data.size) ?? previous?.size ?? null,
         languages:
           codeList(entry.data.languages, (code) => code.toLowerCase()) ??
           previous?.languages ??
@@ -268,10 +306,15 @@ export class TitledbService {
       const newestDated = Math.max(-1, ...dated.keys());
       if (newestDated > (row.latestVersion ?? -1)) row.latestVersion = newestDated;
       if (row.latestVersion != null && !dated.has(row.latestVersion)) {
-        dated.set(row.latestVersion, null);
+        dated.set(row.latestVersion, { releaseDate: null, size: null });
       }
-      for (const [version, releaseDate] of dated) {
-        versions.push({ titleId: row.titleId, version, releaseDate });
+      for (const [version, info] of dated) {
+        versions.push({
+          titleId: row.titleId,
+          version,
+          releaseDate: info.releaseDate,
+          size: info.size,
+        });
       }
     }
     const rows = [...titles.values()];

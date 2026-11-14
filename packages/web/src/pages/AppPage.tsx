@@ -1,4 +1,4 @@
-import type { AppContent, AppDetail, AppFlag, LibraryFileInfo, VerifyTask } from "@nslib/shared";
+import type { AppComponent, AppDetail, AppFlag, LibraryFileInfo, VerifyTask } from "@nslib/shared";
 import { Link, useLocation, useParams } from "react-router";
 import {
   ApiRequestError,
@@ -33,6 +33,7 @@ import {
   firmwareLabel,
   formatBytes,
   plural,
+  releaseDateLabel,
   SOURCE_LABEL,
   updateLabel,
   usePageTitle,
@@ -52,7 +53,7 @@ const FLAG_NOTES: Record<AppFlag, string> = {
   "update-available": "A newer update is listed than any file in your library.",
 };
 
-const SECTIONS: { type: AppContent["type"]; title: string; empty: string }[] = [
+const SECTIONS: { type: AppComponent["type"]; title: string; empty: string }[] = [
   { type: "application", title: "Base game", empty: "Not in your library." },
   { type: "patch", title: "Updates", empty: "No updates." },
   { type: "addon", title: "DLC", empty: "No DLC." },
@@ -71,7 +72,7 @@ function backLink(state: unknown): { to: string; label: string } {
   return { to: back, label };
 }
 
-function contentTitle(content: AppContent): string {
+function contentTitle(content: AppComponent): string {
   switch (content.type) {
     case "application":
       return "Base game";
@@ -383,6 +384,7 @@ export function AppPage() {
   }
   const detail = app.data;
   const allFiles = detail.contents.flatMap((c) => c.files);
+  const contentById = new Map(detail.contents.map((content) => [content.contentMetaId, content]));
   const firmware = Math.max(0, ...detail.contents.map((c) => c.requiredSystemVersion ?? 0));
   const targets = flagTargets(detail);
   const newestUpdate = Math.max(
@@ -390,6 +392,8 @@ export function AppPage() {
     ...detail.contents.filter((c) => c.type === "patch").map((c) => c.version ?? -1),
   );
   const facts = [
+    detail.releaseDate === null ? null : `Released ${releaseDateLabel(detail.releaseDate)}`,
+    detail.lastUpdateDate === null ? null : `Updated ${releaseDateLabel(detail.lastUpdateDate)}`,
     formatBytes(detail.totalSize),
     plural(detail.fileCount, "file"),
     firmware > 0 ? `Needs firmware ${firmwareLabel(firmware)}` : null,
@@ -457,63 +461,84 @@ export function AppPage() {
 
         <div className="flex min-w-0 flex-col gap-6">
           {SECTIONS.map(({ type, title, empty }) => {
-            const contents = detail.contents.filter((c) => c.type === type);
+            const components = detail.components.filter((component) => component.type === type);
             return (
               <Card
                 key={type}
                 title={title}
-                count={contents.length > 1 ? <Count value={contents.length} /> : undefined}
+                count={components.length > 1 ? <Count value={components.length} /> : undefined}
               >
-                {contents.length === 0 ? (
+                {components.length === 0 ? (
                   <p className={`${cardRow} pt-1 pb-4 text-muted`}>{empty}</p>
                 ) : (
                   <ul className="mt-3 divide-y divide-line border-t border-line">
-                    {contents.map((content) => {
+                    {components.map((component) => {
+                      const content =
+                        component.contentMetaId === null
+                          ? undefined
+                          : contentById.get(component.contentMetaId);
                       const older =
                         type === "patch" &&
-                        content.version !== null &&
-                        content.version < newestUpdate;
-                      const duplicate = present(content.files).length > 1;
+                        component.version !== null &&
+                        component.version < newestUpdate;
+                      const duplicate = content ? present(content.files).length > 1 : false;
                       return (
                         <li
-                          key={content.contentMetaId}
-                          id={`content-${content.contentMetaId}`}
-                          tabIndex={-1}
+                          key={`${component.titleId}:${component.version ?? "?"}:${component.contentMetaId ?? "missing"}`}
+                          id={content ? `content-${content.contentMetaId}` : undefined}
+                          tabIndex={content ? -1 : undefined}
                           className={`${cardRow} scroll-mt-20 outline-none focus-visible:bg-accent/5`}
                         >
-                          {type !== "application" && (
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                              <h3 className="text-lg">{contentTitle(content)}</h3>
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            {type !== "application" && (
+                              <h3 className="text-lg">{contentTitle(component)}</h3>
+                            )}
+                            {type !== "application" && (
                               <span className="text-sm text-muted">
-                                {content.titleId}
-                                {content.version !== null &&
-                                  type === "patch" &&
-                                  ` · v${content.version}`}
+                                {component.titleId}
+                                {component.version !== null &&
+                                  component.version !== 0 &&
+                                  ` · v${component.version}`}
                               </span>
-                              {older && (
-                                <Badge tone="warning" title="Only the newest update is needed">
-                                  Older update
-                                </Badge>
-                              )}
-                              {content.applicationIdSource === "guess" && (
-                                <Badge tone="warning">Matched by title ID</Badge>
-                              )}
-                              {content.applicationIdSource === "titledb" && (
-                                <Badge>Matched by title database</Badge>
-                              )}
-                            </div>
+                            )}
+                            {component.releaseDate !== null && (
+                              <span className="text-sm text-muted">
+                                Released {releaseDateLabel(component.releaseDate)}
+                              </span>
+                            )}
+                            <span className="text-sm text-muted">
+                              {component.size === null
+                                ? "Size unknown"
+                                : formatBytes(component.size)}
+                            </span>
+                            {!component.inLibrary && (
+                              <Badge tone="danger">Missing from library</Badge>
+                            )}
+                            {older && (
+                              <Badge tone="warning" title="Only the newest update is needed">
+                                Older update
+                              </Badge>
+                            )}
+                            {content?.applicationIdSource === "guess" && (
+                              <Badge tone="warning">Matched by title ID</Badge>
+                            )}
+                            {content?.applicationIdSource === "titledb" && (
+                              <Badge>Matched by title database</Badge>
+                            )}
+                          </div>
+                          {content && (
+                            <ul>
+                              {content.files.map((file) => (
+                                <FileRow
+                                  key={file.id}
+                                  file={file}
+                                  rootPath={rootPaths.get(file.rootId)}
+                                  hasNsz={content.files.some((other) => other.format === "nsz")}
+                                  duplicate={duplicate && file.missingSince === null}
+                                />
+                              ))}
+                            </ul>
                           )}
-                          <ul>
-                            {content.files.map((file) => (
-                              <FileRow
-                                key={file.id}
-                                file={file}
-                                rootPath={rootPaths.get(file.rootId)}
-                                hasNsz={content.files.some((other) => other.format === "nsz")}
-                                duplicate={duplicate && file.missingSince === null}
-                              />
-                            ))}
-                          </ul>
                         </li>
                       );
                     })}

@@ -15,6 +15,7 @@ const content: AppContent = {
   type: "application",
   version: 0,
   name: "Example",
+  releaseDate: null,
   applicationIdSource: "exact",
   keyGeneration: null,
   requiredSystemVersion: null,

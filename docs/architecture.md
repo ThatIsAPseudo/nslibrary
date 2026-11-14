@@ -121,7 +121,13 @@ URL. It is applied when the library is read (`library/titledb-join.ts`) rather t
 numbers, and details the library can be sorted and filtered by (release date, languages, regions,
 age rating, players). An optional second source, a versions list (`{ "<title ID>": { "<version>":
 "YYYY-MM-DD" } }`, like blawar's `versions.json`), dates each update for the last-updated sort and
-filter. Icons are stored exactly as read from NACP or NRO — there is no server-side resizing.
+filter. Each content on a title's page (its base game, each known update version, each DLC) is
+compared with scanned library files so missing components are visible. Release dates come from that
+title's entry or, for updates, the versions list. Titledb's `size` and optional `size` values in
+version records are shown when present; missing values remain unknown. The versions list accepts
+plain date strings/numbers or objects with `releaseDate` (or `date`) and optional byte `size` (see
+`titledb-join.ts` and `known-components.ts`). Icons are stored exactly as read from NACP or NRO —
+there is no server-side resizing.
 
 ### Storage
 

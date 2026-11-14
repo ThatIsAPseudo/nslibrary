@@ -43,6 +43,9 @@
     "sort_added_asc": "最早新增"
   },
   "detail": {
+    "released": "{} 發售",
+    "missing_library": "不在資料庫中",
+    "size_unknown": "大小未知",
     "base": "本體",
     "install_body": "安裝到哪個儲存空間？",
     "installed": "已安裝",

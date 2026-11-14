@@ -57,6 +57,13 @@
       "when": 1791500000000,
       "tag": "0007_titledb_details",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1791600000000,
+      "tag": "0008_titledb_content_sizes",
+      "breakpoints": true
     }
   ]
 }

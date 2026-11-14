@@ -11,6 +11,21 @@ released the `.nro` only.
 
 ## [Unreleased]
 
+### Added
+- **Release dates on a title's page.** The web UI and the Switch app now show when the base game,
+  each update, and each DLC came out, from titledb and the versions list. The web page also shows
+  the game's release date and the newest known update date in its header. Content titledb doesn't
+  date shows nothing rather than a guess.
+- **Show expected content that is missing from the library.** Title pages now list expected base,
+  update-version, and DLC components from titledb, compare each against scanned files, and show the
+  version, known size, and release date. Missing sizes and dates are explicitly unknown; no install
+  action is offered for content that has no file.
+- Web API: `AppContent` gains `releaseDate`; `AppDetail` gains `components`, the metadata-backed
+  inventory compared with local files.
+- Device API: catalog apps gain optional `rd` (dates by `contentMetaId`) and `components` (expected
+  inventory and library presence). These are separate from content tuples so older clients keep
+  working.
+
 ## [0.8.0] - 2026-10-10
 
 ### Added

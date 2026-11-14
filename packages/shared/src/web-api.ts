@@ -51,7 +51,7 @@ export const PutKeysRequestSchema = z.object({
 export const TitledbConfigSchema = z.object({
   enabled: z.boolean().optional(),
   source: z.string().trim().max(4096).nullable().optional(),
-  /** Optional versions.json (title ID → version → date) for when each update came out. */
+  /** Optional versions.json (title ID → version → date/details) for update history and release dates. */
   versionsSource: z.string().trim().max(4096).nullable().optional(),
 });
 
@@ -457,6 +457,11 @@ export interface AppContent {
   type: ContentMetaType;
   version: number | null;
   name: string;
+  /**
+   * When this base game, update, or DLC came out, as YYYYMMDD. A game or DLC needs its titledb
+   * entry; an update needs a versions-list entry. Null when its source does not date it.
+   */
+  releaseDate: number | null;
   applicationIdSource: ApplicationIdSource;
   keyGeneration: number | null;
   requiredSystemVersion: number | null;
@@ -464,8 +469,26 @@ export interface AppContent {
   files: LibraryFileInfo[];
 }
 
+/** One known base game, update, or DLC, compared with the files currently in the library. */
+export interface AppComponent {
+  titleId: string;
+  type: ContentMetaType;
+  version: number | null;
+  name: string;
+  /** Package size in bytes; null when metadata cannot supply it. */
+  size: number | null;
+  releaseDate: number | null;
+  /** Whether an exact corresponding component is present in an enabled library folder. */
+  inLibrary: boolean;
+  /** Present only when inLibrary; references its detailed files in `contents`. */
+  contentMetaId: number | null;
+}
+
 export interface AppDetail extends AppSummary {
+  /** Files found by scanning, with their existing metadata. */
   contents: AppContent[];
+  /** Metadata-backed inventory, including expected components not found in the library. */
+  components: AppComponent[];
 }
 
 export interface HomebrewItem {

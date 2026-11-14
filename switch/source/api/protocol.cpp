@@ -41,6 +41,20 @@ CatalogAddon parseAddon(const Json& v) {
     return a;
 }
 
+CatalogComponent parseCatalogComponent(const Json& v) {
+    if (!v.isObject()) throw JsonError("catalog component must be an object");
+    CatalogComponent item;
+    item.titleId = reqString(v["titleId"], "component.titleId");
+    item.type = reqString(v["type"], "component.type");
+    if (!v["version"].isNull()) item.version = uint32_t(v["version"].asUint());
+    item.name = reqString(v["name"], "component.name");
+    if (!v["size"].isNull()) item.size = v["size"].asUint();
+    if (!v["releaseDate"].isNull()) item.releaseDate = uint32_t(v["releaseDate"].asUint());
+    item.inLibrary = v["inLibrary"].asBool();
+    if (!v["contentMetaId"].isNull()) item.contentMetaId = v["contentMetaId"].asInt();
+    return item;
+}
+
 CatalogApp parseApp(const Json& v) {
     if (!v.isObject()) throw JsonError("catalog app must be an object");
     CatalogApp a;
@@ -57,6 +71,25 @@ CatalogApp parseApp(const Json& v) {
         for (const auto& item : v["d"].items()) a.dlc.push_back(parseAddon(item));
     }
     if (v.has("a") && v["a"].isNumber()) a.addedAt = v["a"].asInt();
+    if (v.has("components") && v["components"].isArray()) {
+        for (const auto& item : v["components"].items()) {
+            try {
+                a.components.push_back(parseCatalogComponent(item));
+            } catch (const JsonError&) {
+                // Skip one malformed metadata row without losing the app or the rest of its list.
+            }
+        }
+    }
+    if (v.has("rd") && v["rd"].isObject()) {
+        for (const auto& field : v["rd"].fields()) {
+            // A date this client cannot read costs that one date, not the title.
+            if (!field.second.isNumber()) continue;
+            try {
+                a.releaseDates[std::stoll(field.first)] = uint32_t(field.second.asUint());
+            } catch (const std::exception&) {
+            }
+        }
+    }
     return a;
 }
 

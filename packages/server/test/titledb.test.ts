@@ -93,13 +93,32 @@ describe("parseVersionsJson", () => {
       [
         "0100ABCDEF012000",
         new Map([
-          [65536, 20170501],
-          [131072, null],
-          [196608, 20181120],
+          [65536, { releaseDate: 20170501, size: null }],
+          [131072, { releaseDate: null, size: null }],
+          [196608, { releaseDate: 20181120, size: null }],
         ]),
       ],
     ]);
     expect(() => parseVersionsJson("[]")).toThrow();
     expect(() => parseVersionsJson("{}")).toThrow(/No versions/);
+  });
+
+  it("accepts optional releaseDate/date and byte size on version objects", () => {
+    expect(
+      parseVersionsJson(
+        JSON.stringify({
+          "0100ABCDEF012000": { "196608": { releaseDate: "2018-11-20", size: "123456" } },
+        }),
+      )
+        .get("0100ABCDEF012000")
+        ?.get(196608),
+    ).toEqual({ releaseDate: 20181120, size: 123456 });
+    expect(
+      parseVersionsJson(
+        JSON.stringify({ "0100ABCDEF012000": { "196608": { date: "2018-11-20", size: -1 } } }),
+      )
+        .get("0100ABCDEF012000")
+        ?.get(196608),
+    ).toEqual({ releaseDate: 20181120, size: null });
   });
 });

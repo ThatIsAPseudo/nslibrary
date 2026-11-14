@@ -68,6 +68,17 @@ TEST(protocol_catalog_golden) {
     CHECK_EQ(app.dlc[0].name, std::string("Bonus Pack"));
     CHECK(app.addedAt.has_value());
     CHECK_EQ(*app.addedAt, 1758700800);
+    // Release dates are by content, since the tuples above must stay the same length for older
+    // clients; an older server sends none.
+    CHECK_EQ(app.releaseDates.size(), size_t(4));
+    CHECK_EQ(app.releaseDates.at(11), 20170303u);
+    CHECK_EQ(app.releaseDates.at(13), 20181120u);
+    CHECK_EQ(app.components.size(), size_t(5));
+    CHECK_EQ(app.components[1].type, std::string("patch"));
+    CHECK_EQ(app.components[1].version.value(), 458752u);
+    CHECK(!app.components[1].inLibrary);
+    CHECK(!app.components[1].contentMetaId.has_value());
+    CHECK_EQ(app.components[1].releaseDate.value(), 20200101u);
 }
 
 TEST(protocol_catalog_from_an_older_server_has_no_date_added) {
@@ -75,6 +86,8 @@ TEST(protocol_catalog_from_an_older_server_has_no_date_added) {
         R"({"rev":1,"full":true,"apps":[{"i":"0100000000010000","n":"Game","ic":null,"b":null,"u":[],"d":[]}],"del":[],"next":null})");
     CHECK_EQ(c.apps.size(), 1u);
     CHECK(!c.apps[0].addedAt.has_value());
+    CHECK(c.apps[0].releaseDates.empty());
+    CHECK(c.apps[0].components.empty());
     CHECK_EQ(c.skipped, 0u);
 }
 

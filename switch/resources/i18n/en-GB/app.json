@@ -43,6 +43,9 @@
     "sort_added_asc": "Oldest added"
   },
   "detail": {
+    "released": "Released {}",
+    "missing_library": "Missing from library",
+    "size_unknown": "Size unknown",
     "base": "Base game",
     "install_body": "Install to which storage?",
     "installed": "Installed",

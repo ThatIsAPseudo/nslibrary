@@ -24,6 +24,7 @@ import {
   homebrew,
   libraryRoots,
 } from "../db/schema";
+import { createKnownComponentIndex, listKnownComponents } from "./known-components";
 import { preferredFormatRank } from "./prefer";
 import { tdbApp, tdbTitle, titledbJoin } from "./titledb-join";
 
@@ -76,6 +77,8 @@ function loadContentRows(db: Db, options: LoadOptions = {}) {
       latestKnownVersion: tdb.latestKnownVersion,
       releaseDate: tdb.releaseDate,
       lastUpdateDate: tdb.lastUpdateDate,
+      contentReleaseDate: tdb.contentReleaseDate,
+      contentVersionDate: tdb.contentVersionDate,
       languages: tdb.languages,
       regions: tdb.regions,
       rating: tdb.rating,
@@ -328,14 +331,22 @@ export function getApplication(
   const rows = loadContentRows(db, { applicationId, titledb: options.titledb });
   if (rows.length === 0) return null;
 
-  const contents: AppContent[] = [...groupBy(rows, contentKey).values()].map((group) => {
+  const groups = [...groupBy(rows, contentKey).values()];
+  const contents: AppContent[] = groups.map((group) => {
     const head = pickPreferredRow(group, preferCompressed);
+    // The version's own date when the versions list has it, then the title's entry. Updates are
+    // dated under the game's ID, which `contentVersionDate` already accounts for.
+    const releaseDate =
+      group.find((r) => r.contentVersionDate !== null)?.contentVersionDate ??
+      group.find((r) => r.contentReleaseDate !== null)?.contentReleaseDate ??
+      null;
     return {
       contentMetaId: head.metaId,
       titleId: head.titleId,
       type: head.type,
       version: head.version,
       name: head.displayName,
+      releaseDate,
       applicationIdSource: head.applicationIdSource,
       keyGeneration: group.find((r) => r.keyGeneration !== null)?.keyGeneration ?? null,
       requiredSystemVersion:
@@ -353,7 +364,27 @@ export function getApplication(
       a.titleId.localeCompare(b.titleId),
   );
 
-  return { ...summarize(applicationId, rows), contents };
+  const localComponents = groups.map((group) => {
+    const head = pickPreferredRow(group, preferCompressed);
+    return {
+      contentMetaId: head.metaId,
+      titleId: head.titleId,
+      type: head.type,
+      version: head.version,
+      name: head.displayName,
+      size: head.file.size,
+      releaseDate:
+        group.find((r) => r.contentVersionDate !== null)?.contentVersionDate ??
+        group.find((r) => r.contentReleaseDate !== null)?.contentReleaseDate ??
+        null,
+    };
+  });
+  const components = listKnownComponents(
+    createKnownComponentIndex(db, options.titledb ?? false),
+    applicationId,
+    localComponents,
+  );
+  return { ...summarize(applicationId, rows), contents, components };
 }
 
 export function listHomebrew(db: Db): HomebrewItem[] {

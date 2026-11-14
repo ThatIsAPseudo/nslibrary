@@ -90,6 +90,17 @@ std::string formatFirmware(uint32_t systemVersion) {
         std::to_string((systemVersion >> 16) & 0xf);
 }
 
+std::string formatReleaseDate(uint32_t date) {
+    const uint32_t year = date / 10000;
+    const uint32_t month = (date / 100) % 100;
+    const uint32_t day = date % 100;
+    // ISO order reads the same in every language, and the console has no date format of its own.
+    if (year < 1970 || year > 9999 || month < 1 || month > 12 || day < 1 || day > 31) return "";
+    char buf[16];
+    std::snprintf(buf, sizeof(buf), "%04u-%02u-%02u", year, month, day);
+    return buf;
+}
+
 std::string cleanTitleName(const std::string& name) {
     static const char* kUnits[] = {"TB", "GB", "MB", "KB", "B"};
     std::string out = name;

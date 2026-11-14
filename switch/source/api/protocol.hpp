@@ -3,6 +3,7 @@
 #include "api/json.hpp"
 
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -78,6 +79,17 @@ struct CatalogAddon {
     uint64_t size = 0;
 };
 
+struct CatalogComponent {
+    std::string titleId;
+    std::string type;
+    std::optional<uint32_t> version;
+    std::string name;
+    std::optional<uint64_t> size;
+    std::optional<uint32_t> releaseDate;
+    bool inLibrary = false;
+    std::optional<int64_t> contentMetaId;
+};
+
 struct CatalogApp {
     std::string id;
     std::string name;
@@ -87,8 +99,15 @@ struct CatalogApp {
     std::optional<CatalogContentRef> base;
     std::vector<CatalogContentRef> updates;
     std::vector<CatalogAddon> dlc;
+    /** Full metadata-backed component inventory; absent from older servers. */
+    std::vector<CatalogComponent> components;
     /** When the game was added to the library, in epoch seconds. Absent from older servers. */
     std::optional<int64_t> addedAt;
+    /**
+     * Release dates of the base game, updates, and DLC, as YYYYMMDD, by contentMetaId. Dates the
+     * server does not know are missing rather than zero, and older servers send none at all.
+     */
+    std::map<int64_t, uint32_t> releaseDates;
 };
 
 struct CatalogResponse {

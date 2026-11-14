@@ -88,6 +88,18 @@ export const CatalogContentRefSchema = z.tuple([u32, rowId, byteCount, Container
 /** [titleId, version, name, contentMetaId, size] */
 export const CatalogAddonSchema = z.tuple([titleId, u32, z.string(), rowId, byteCount]);
 
+/** A metadata-known component and whether there is an installable file in the library. */
+export const CatalogComponentSchema = z.object({
+  titleId,
+  type: ContentMetaTypeSchema,
+  version: u32.nullable(),
+  name: z.string(),
+  size: byteCount.nullable(),
+  releaseDate: z.number().int().positive().nullable(),
+  inLibrary: z.boolean(),
+  contentMetaId: rowId.nullable(),
+});
+
 export const CatalogAppSchema = z.object({
   /** application ID */
   i: titleId,
@@ -107,6 +119,14 @@ export const CatalogAppSchema = z.object({
   d: z.array(CatalogAddonSchema),
   /** when the game's earliest file was first seen, in epoch seconds; absent from older servers */
   a: z.number().int().nonnegative().optional(),
+  /**
+   * Release dates of the base game, updates, and DLC it lists, as YYYYMMDD, keyed by
+   * contentMetaId. Absent from older servers, and entries can be missing when titledb doesn't
+   * date that content.
+   */
+  rd: z.record(z.string(), z.number().int().positive()).optional(),
+  /** Expected and locally available base/update/DLC components, when the server provides them. */
+  components: z.array(CatalogComponentSchema).optional(),
 });
 
 export const CatalogResponseSchema = z.object({

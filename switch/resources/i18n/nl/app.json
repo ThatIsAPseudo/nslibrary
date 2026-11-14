@@ -43,6 +43,9 @@
     "sort_added_asc": "Eerst toegevoegd"
   },
   "detail": {
+    "released": "Uitgebracht op {}",
+    "missing_library": "Ontbreekt in bibliotheek",
+    "size_unknown": "Onbekende grootte",
     "base": "Basisspel",
     "install_body": "Naar welke opslag?",
     "installed": "Geïnstalleerd",

@@ -43,6 +43,9 @@
     "sort_added_asc": "最早添加"
   },
   "detail": {
+    "released": "{} 发售",
+    "missing_library": "不在资料库中",
+    "size_unknown": "大小未知",
     "base": "本体",
     "install_body": "安装到哪个存储？",
     "installed": "已安装",

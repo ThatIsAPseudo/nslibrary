@@ -43,6 +43,9 @@
     "sort_added_asc": "Aggiunti per primi"
   },
   "detail": {
+    "released": "Uscito il {}",
+    "missing_library": "Non nella libreria",
+    "size_unknown": "Dimensione sconosciuta",
     "base": "Gioco base",
     "install_body": "Su quale memoria?",
     "installed": "Installato",

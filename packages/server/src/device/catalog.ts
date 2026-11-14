@@ -2,6 +2,11 @@ import type { CatalogApp, CatalogResponse, ContainerFormat, ContentMetaType } fr
 import { and, eq, isNull } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { applications, contentMetas, files, libraryRoots } from "../db/schema";
+import {
+  createKnownComponentIndex,
+  type LocalComponent,
+  listKnownComponents,
+} from "../library/known-components";
 import { pickPreferred } from "../library/prefer";
 import { tdbApp, tdbTitle, titledbJoin } from "../library/titledb-join";
 
@@ -22,6 +27,8 @@ interface CatalogRow {
   appName: string | null;
   appPublisher: string | null;
   appIconKey: string | null;
+  contentReleaseDate: number | null;
+  contentVersionDate: number | null;
 }
 
 function loadRows(db: Db, titledb: boolean): CatalogRow[] {
@@ -42,6 +49,8 @@ function loadRows(db: Db, titledb: boolean): CatalogRow[] {
       appName: tdb.appName,
       appPublisher: tdb.appPublisher,
       appIconKey: applications.iconKey,
+      contentReleaseDate: tdb.contentReleaseDate,
+      contentVersionDate: tdb.contentVersionDate,
     })
     .from(contentMetas)
     .innerJoin(files, eq(files.id, contentMetas.fileId))
@@ -80,7 +89,12 @@ function versionOf(row: CatalogRow): number {
   return row.version ?? 0;
 }
 
-function toApp(applicationId: string, rows: CatalogRow[], preferCompressed: boolean): CatalogApp {
+function toApp(
+  applicationId: string,
+  rows: CatalogRow[],
+  preferCompressed: boolean,
+  knownComponentIndex: ReturnType<typeof createKnownComponentIndex>,
+): CatalogApp {
   const bases = groupBy(
     rows.filter((r) => r.type === "application"),
     (r) => versionOf(r),
@@ -120,6 +134,28 @@ function toApp(applicationId: string, rows: CatalogRow[], preferCompressed: bool
 
   const first = rows[0];
   const addedAt = rows.reduce((min, r) => Math.min(min, r.firstSeenAt), first?.firstSeenAt ?? 0);
+  // Dates are keyed by content, because the tuples above stay as they are: a server that added a
+  // field to them would make older clients skip every title.
+  const releaseDates: Record<string, number> = {};
+  for (const row of selected) {
+    const date = row.contentVersionDate ?? row.contentReleaseDate;
+    if (date !== null) releaseDates[String(row.metaId)] = date;
+  }
+  const localComponents: LocalComponent[] = [
+    ...groupBy(rows, (row) => `${row.titleId}:${row.version ?? "?"}`).values(),
+  ].map((group) => {
+    const row = pickRow(group, preferCompressed);
+    return {
+      contentMetaId: row.metaId,
+      titleId: row.titleId,
+      type: row.type,
+      version: row.version,
+      name: row.displayName,
+      size: row.size,
+      releaseDate: row.contentVersionDate ?? row.contentReleaseDate,
+    };
+  });
+  const components = listKnownComponents(knownComponentIndex, applicationId, localComponents);
   return {
     i: applicationId,
     n: first?.appName ?? base?.displayName ?? first?.displayName ?? applicationId,
@@ -132,14 +168,17 @@ function toApp(applicationId: string, rows: CatalogRow[], preferCompressed: bool
     // Seconds: enough to sort by, and shorter on the wire. The console does the sorting, because
     // paginateCatalog pages by application ID.
     a: Math.floor(addedAt / 1000),
+    ...(Object.keys(releaseDates).length > 0 ? { rd: releaseDates } : {}),
+    components,
   };
 }
 
 /** Sorted by application ID: paginateCatalog's cursor depends on it. */
 export function buildCatalogApps(db: Db, preferCompressed: boolean, titledb = false): CatalogApp[] {
   const byApp = groupBy(loadRows(db, titledb), (row) => row.applicationId);
+  const knownComponentIndex = createKnownComponentIndex(db, titledb);
   return [...byApp]
-    .map(([id, rows]) => toApp(id, rows, preferCompressed))
+    .map(([id, rows]) => toApp(id, rows, preferCompressed, knownComponentIndex))
     .sort((a, b) => a.i.localeCompare(b.i));
 }
 

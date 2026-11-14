@@ -43,6 +43,9 @@
     "sort_added_asc": "追加日が古い順"
   },
   "detail": {
+    "released": "{} 発売",
+    "missing_library": "ライブラリにありません",
+    "size_unknown": "サイズ不明",
     "base": "本体",
     "install_body": "どのストレージにインストールしますか？",
     "installed": "インストール済",

@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BulkSendBar, titleInstallItems } from "../src/components/BulkSend";
 import { FileName } from "../src/components/FileName";
+import { releaseDateLabel } from "../src/format";
 import { AppPage } from "../src/pages/AppPage";
 import { app, device } from "./fixtures";
 import { renderWithApp, stubApi } from "./render";
@@ -31,6 +32,7 @@ function content(
   type: AppContent["type"],
   version: number | null,
   files: LibraryFileInfo[],
+  releaseDate: number | null = null,
 ): AppContent {
   return {
     contentMetaId,
@@ -38,6 +40,7 @@ function content(
     type,
     version,
     name: type === "addon" ? `DLC ${contentMetaId}` : "Example",
+    releaseDate,
     applicationIdSource: "exact",
     keyGeneration: null,
     requiredSystemVersion: null,
@@ -48,12 +51,84 @@ function content(
 
 function detail(): AppDetail {
   return {
-    ...app({ flags: ["duplicate", "superseded-updates"] }),
+    ...app({
+      flags: ["duplicate", "superseded-updates"],
+      releaseDate: 20170303,
+      lastUpdateDate: 20181120,
+    }),
     contents: [
-      content(1, "application", 0, [file(1, "games/Example.nsp"), file(2, "backup/Example.nsp")]),
-      content(2, "patch", 65536, [file(3, "updates/v1.nsp")]),
+      content(
+        1,
+        "application",
+        0,
+        [file(1, "games/Example.nsp"), file(2, "backup/Example.nsp")],
+        20170303,
+      ),
+      content(2, "patch", 65536, [file(3, "updates/v1.nsp")], 20181120),
       content(3, "patch", 131072, [file(4, "updates/v2.nsp")]),
-      content(4, "addon", 0, [file(5, "dlc/dlc.nsp")]),
+      content(4, "addon", 0, [file(5, "dlc/dlc.nsp")], 20190501),
+    ],
+    components: [
+      {
+        titleId: "0100000000010000",
+        type: "application",
+        version: 0,
+        name: "Example",
+        size: 100,
+        releaseDate: 20170303,
+        inLibrary: true,
+        contentMetaId: 1,
+      },
+      {
+        titleId: "0100000000010800",
+        type: "patch",
+        version: 196608,
+        name: "Example Update",
+        size: 2048,
+        releaseDate: 20200101,
+        inLibrary: false,
+        contentMetaId: null,
+      },
+      {
+        titleId: "0100000000010800",
+        type: "patch",
+        version: 262144,
+        name: "Example Update",
+        size: null,
+        releaseDate: null,
+        inLibrary: false,
+        contentMetaId: null,
+      },
+      {
+        titleId: "0100000000010800",
+        type: "patch",
+        version: 65536,
+        name: "Example Update",
+        size: 100,
+        releaseDate: 20181120,
+        inLibrary: true,
+        contentMetaId: 2,
+      },
+      {
+        titleId: "0100000000010800",
+        type: "patch",
+        version: 131072,
+        name: "Example Update",
+        size: 100,
+        releaseDate: null,
+        inLibrary: true,
+        contentMetaId: 3,
+      },
+      {
+        titleId: "0100000000011001",
+        type: "addon",
+        version: 0,
+        name: "DLC 4",
+        size: 100,
+        releaseDate: 20190501,
+        inLibrary: true,
+        contentMetaId: 4,
+      },
     ],
   };
 }
@@ -112,6 +187,27 @@ describe("AppPage", () => {
   it("names the page it goes back to", async () => {
     renderAt({ back: "/switch?device=2" });
     expect(await screen.findByRole("link", { name: /Back to On this Switch/ })).toBeTruthy();
+  });
+
+  it("shows when the game and each of its files came out", async () => {
+    renderAt(null);
+    // The game's own dates, in the header.
+    expect(
+      await screen.findByText(
+        new RegExp(
+          `^Released ${releaseDateLabel(20170303)} · Updated ${releaseDateLabel(20181120)}`,
+        ),
+      ),
+    ).toBeTruthy();
+    // Then each base game, update, and DLC that titledb dates.
+    expect(screen.getByText(`Released ${releaseDateLabel(20170303)}`)).toBeTruthy();
+    expect(screen.getByText(`Released ${releaseDateLabel(20181120)}`)).toBeTruthy();
+    expect(screen.getByText(`Released ${releaseDateLabel(20190501)}`)).toBeTruthy();
+    // The header and every component with a known date (including the missing version).
+    expect(screen.getAllByText(/^Released /)).toHaveLength(5);
+    expect(screen.getAllByText("Missing from library")).toHaveLength(2);
+    expect(screen.getByText("2.0 KB")).toBeTruthy();
+    expect(screen.getByText("Size unknown")).toBeTruthy();
   });
 });
 

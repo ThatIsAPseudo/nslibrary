@@ -7,6 +7,8 @@
  * - Content named only from its file name or ticket takes titledb's name.
  * - The latest known version, release date, languages, regions, age rating, and player count
  *   come from the base game's titledb entry, and the last update date from its versions list.
+ * - Each content row gets its own release date: its title's entry for the base game or a DLC, and
+ *   the versions list for one update's version.
  */
 import type { ApplicationIdSource } from "@nslib/shared";
 import { and, eq, type SQL, sql } from "drizzle-orm";
@@ -31,6 +33,10 @@ export interface TitledbJoin {
   latestKnownVersion: SQL<number | null>;
   releaseDate: SQL<number | null>;
   lastUpdateDate: SQL<number | null>;
+  /** Release date of the row's own title entry: the base game's, or a DLC's. */
+  contentReleaseDate: SQL<number | null>;
+  /** Release date of this exact content version from the versions list, when it dates it. */
+  contentVersionDate: SQL<number | null>;
   /** JSON arrays, as stored. */
   languages: SQL<string | null>;
   regions: SQL<string | null>;
@@ -60,6 +66,13 @@ export function titledbJoin(enabled: boolean): TitledbJoin {
     lastUpdateDate: sql<
       number | null
     >`(case when ${on} then (select max(${titledbVersions.releaseDate}) from ${titledbVersions} where ${titledbVersions.titleId} = ${applicationId} and ${titledbVersions.version} > 0) end)`,
+    contentReleaseDate: sql<number | null>`${tdbTitle.releaseDate}`,
+    // A DLC and the base game are dated under their own title ID; an update's version is dated
+    // under the game's, since titledb has no entry of its own for it.
+    contentVersionDate: sql<number | null>`(case when ${on} then coalesce(
+      (select ${titledbVersions.releaseDate} from ${titledbVersions} where ${titledbVersions.titleId} = ${contentMetas.titleId} and ${titledbVersions.version} = ${contentMetas.version}),
+      (case when ${contentMetas.type} = 'patch' then (select ${titledbVersions.releaseDate} from ${titledbVersions} where ${titledbVersions.titleId} = ${applicationId} and ${titledbVersions.version} = ${contentMetas.version}) end)
+    ) end)`,
     languages: sql<string | null>`${tdbApp.languages}`,
     regions: sql<string | null>`${tdbApp.regions}`,
     rating: sql<number | null>`${tdbApp.rating}`,

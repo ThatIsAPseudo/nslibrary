@@ -60,7 +60,7 @@ describe("SettingsPage title database", () => {
     renderWithApp(<SettingsPage />);
     expect(await screen.findByText(/10 titles loaded/)).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText("Update dates (optional)"), {
+    fireEvent.change(screen.getByLabelText("Update versions and dates (optional)"), {
       target: { value: " /data/versions.json " },
     });
     fireEvent.click(screen.getByRole("button", { name: "Save and refresh" }));

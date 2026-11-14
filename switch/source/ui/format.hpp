@@ -29,6 +29,9 @@ std::string formatVersion(uint32_t version);
 /** CNMT packed system version to "21.1.0". */
 std::string formatFirmware(uint32_t systemVersion);
 
+/** A titledb release date (YYYYMMDD) as "2017-03-03"; empty when it is not a date. */
+std::string formatReleaseDate(uint32_t date);
+
 /**
  * Library names often carry the container size the server read off the filename, e.g.
  * "Zelda (EU) (28.01 GB)". The UI shows sizes in their own column, so drop that suffix.

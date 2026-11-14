@@ -43,6 +43,9 @@
     "sort_added_asc": "Давно добавленные"
   },
   "detail": {
+    "released": "Выпущено {}",
+    "missing_library": "Нет в библиотеке",
+    "size_unknown": "Размер неизвестен",
     "base": "Основная игра",
     "install_body": "Куда установить?",
     "installed": "Установлено",

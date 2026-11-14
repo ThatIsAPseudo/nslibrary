@@ -136,6 +136,8 @@ export const titledbTitles = sqliteTable("titledb_titles", {
   applicationId: text("application_id"),
   /** YYYYMMDD, as titledb lists it. */
   releaseDate: integer("release_date"),
+  /** Package/content size in bytes, as listed by titledb when available. */
+  size: integer("size"),
   /** JSON array of language codes, sorted. */
   languages: text("languages"),
   /** JSON array of region codes, sorted. */
@@ -202,6 +204,8 @@ export const titledbVersions = sqliteTable(
     version: integer("version").notNull(),
     /** YYYYMMDD, from the versions list when one is configured. */
     releaseDate: integer("release_date"),
+    /** Package/content size in bytes, if a versions source supplies one. */
+    size: integer("size"),
   },
   (t) => [uniqueIndex("titledb_versions_idx").on(t.titleId, t.version)],
 );

@@ -11,7 +11,60 @@
       "b": [0, 11, 1502347264, "nsz"],
       "u": [[393216, 13, 734003200, "nsp"], [65536, 12, 102400000, "nsp"]],
       "d": [["0100000000011001", 0, "Bonus Pack", 14, 20480000]],
-      "a": 1758700800
+      "a": 1758700800,
+      "rd": { "11": 20170303, "13": 20181120, "12": 20181120, "14": 20190501 },
+      "components": [
+        {
+          "titleId": "0100000000010000",
+          "type": "application",
+          "version": 0,
+          "name": "Example Homebrew Game",
+          "size": 1502347264,
+          "releaseDate": 20170303,
+          "inLibrary": true,
+          "contentMetaId": 11
+        },
+        {
+          "titleId": "0100000000010800",
+          "type": "patch",
+          "version": 458752,
+          "name": "Example Update",
+          "size": null,
+          "releaseDate": 20200101,
+          "inLibrary": false,
+          "contentMetaId": null
+        },
+        {
+          "titleId": "0100000000010800",
+          "type": "patch",
+          "version": 393216,
+          "name": "Example Update",
+          "size": 734003200,
+          "releaseDate": 20181120,
+          "inLibrary": true,
+          "contentMetaId": 13
+        },
+        {
+          "titleId": "0100000000010800",
+          "type": "patch",
+          "version": 65536,
+          "name": "Example Update",
+          "size": 102400000,
+          "releaseDate": 20181120,
+          "inLibrary": true,
+          "contentMetaId": 12
+        },
+        {
+          "titleId": "0100000000011001",
+          "type": "addon",
+          "version": 0,
+          "name": "Bonus Pack",
+          "size": 20480000,
+          "releaseDate": 20190501,
+          "inLibrary": true,
+          "contentMetaId": 14
+        }
+      ]
     }
   ],
   "del": ["0100000000020000"],

@@ -38,6 +38,10 @@ Errors are `{error:{code,msg}}` with the same codes over USB.
 
 Catalog pages are always in application ID order, because `cursor` is the last ID of the previous page. Clients sort for display themselves. Each app carries `a`, the time its earliest file was first seen, in epoch seconds; the Switch uses it for the Recently added and Oldest added orders. `a` is optional: servers up to 0.3.0 do not send it, and clients must treat it as absent rather than as zero. Clients ignore catalog keys they do not know, so new optional keys never need a protocol version bump.
 
+When titledb (and, for updates, a versions list) is configured, each app also carries `rd`, an object of release dates as `YYYYMMDD` keyed by `contentMetaId`, covering the base game and the updates and DLC it lists. A content titledb doesn't date is missing from `rd` rather than dated 0. Dates go in their own key because the `b`, `u`, and `d` tuples must keep their length: a client that requires a 4-tuple would skip every title from a server that extended them. Like `a`, `rd` is optional and older servers send none.
+
+Newer servers also include `components`, the expected base/update/DLC inventory compared with scanned library files. Each entry has `titleId`, `type`, nullable `version`, `name`, nullable `size` in bytes, nullable `releaseDate` (`YYYYMMDD`), `inLibrary`, and nullable `contentMetaId`. A null `contentMetaId` means there is no matching file to install. The inventory is derived from title entries and the versions list; a missing size/date means the source doesn't provide it. The key is optional for older servers and clients.
+
 USB uses the same paths inside `NSLU` frames. The first request is `POST /usb/hello` (device info, no pairing code) unless Settings requires pairing. See [usb-protocol.md](usb-protocol.md).
 
 ## Discovery

@@ -462,6 +462,20 @@ describe("web API", () => {
             rating: 12,
             numberOfPlayers: 4,
             version: 65536,
+            size: 80_000_000,
+          },
+          "0100ABCDEF013001": {
+            name: "Bonus Pack",
+            baseId: BASE,
+            releaseDate: 20190501,
+            size: 4_000_000,
+          },
+          "0100ABCDEF013002": {
+            name: "Character Pack",
+            baseId: BASE,
+            version: 65536,
+            releaseDate: 20200115,
+            size: 2_000_000,
           },
           // Nulls, as blawar's files have, drop just that field.
           [OTHER]: {
@@ -481,7 +495,10 @@ describe("web API", () => {
       await writeFile(
         versionsPath,
         JSON.stringify({
-          "0100abcdef012800": { "65536": "2017-05-01", "196608": "2018-11-20" },
+          "0100abcdef012800": {
+            "65536": { releaseDate: "2017-05-01", size: "9900000" },
+            "196608": "2018-11-20",
+          },
           [OTHER]: { "0": "2019-09-20" },
           "0100FFFFFFFF0000": { "65536": "2020-01-01" },
         }),
@@ -493,7 +510,7 @@ describe("web API", () => {
       const status = (await call("POST", "/titledb/refresh", { session })).json<TitledbStatus>();
       expect(status).toMatchObject({
         lastError: null,
-        titleCount: 2,
+        titleCount: 4,
         versionsSource: versionsPath,
         datedVersionCount: 3,
       });
@@ -512,6 +529,50 @@ describe("web API", () => {
         rating: 12,
         players: 4,
         requiredSystemVersion: 0x0c100000,
+      });
+      // Each content is dated on its own: the base game and DLC from their titledb entries, an
+      // update from the versions list. What neither dates stays unknown.
+      const detail = (await call("GET", `/apps/${BASE}`, { session })).json<AppDetail>();
+      expect(detail.contents.map((c) => [c.type, c.version, c.releaseDate])).toEqual([
+        ["application", 0, 20170303],
+        ["patch", 196608, 20181120],
+        ["patch", 131072, null],
+        ["addon", 0, 20190501],
+      ]);
+      expect(
+        detail.components.find((c) => c.type === "patch" && c.version === 65536),
+      ).toMatchObject({
+        size: 9_900_000,
+        releaseDate: 20170501,
+        inLibrary: false,
+        contentMetaId: null,
+      });
+      expect(
+        detail.components.find((c) => c.type === "patch" && c.version === 196608),
+      ).toMatchObject({ inLibrary: true, releaseDate: 20181120 });
+      expect(detail.components.find((c) => c.titleId === "0100ABCDEF013001")).toMatchObject({
+        name: "Bonus Pack",
+        size: 5344,
+        releaseDate: 20190501,
+        inLibrary: true,
+      });
+      expect(detail.components.find((c) => c.titleId === "0100ABCDEF013002")).toMatchObject({
+        type: "addon",
+        name: "Character Pack",
+        version: 65536,
+        size: 2_000_000,
+        releaseDate: 20200115,
+        inLibrary: false,
+        contentMetaId: null,
+      });
+      const catalogApp = server.devices.getCatalog({}).apps.find((c) => c.i === BASE);
+      expect(
+        catalogApp?.components?.find((c) => c.type === "patch" && c.version === 65536),
+      ).toMatchObject({ inLibrary: false, size: 9_900_000, releaseDate: 20170501 });
+      expect(catalogApp?.components?.find((c) => c.titleId === "0100ABCDEF013002")).toMatchObject({
+        inLibrary: false,
+        size: 2_000_000,
+        releaseDate: 20200115,
       });
       // The versions list knows of a newer update than the entry.
       expect(example?.flags).not.toContain("update-available");
@@ -558,6 +619,8 @@ describe("web API", () => {
         languages: [],
         rating: null,
       });
+      const undated = (await call("GET", `/apps/${BASE}`, { session })).json<AppDetail>();
+      expect(undated.contents.every((c) => c.releaseDate === null)).toBe(true);
     });
 
     it("filters games by whether a Switch has them installed", async () => {
@@ -871,8 +934,18 @@ describe("web API", () => {
       await writeFile(
         titledbPath,
         JSON.stringify({
-          "70010000000001": { id: REAL_BASE, name: "Real Base Game", version: 65536 },
-          "70050000000002": { id: DLC, name: "Bonus Pack", baseId: REAL_BASE },
+          "70010000000001": {
+            id: REAL_BASE,
+            name: "Real Base Game",
+            version: 65536,
+            releaseDate: 20170303,
+          },
+          "70050000000002": {
+            id: DLC,
+            name: "Bonus Pack",
+            baseId: REAL_BASE,
+            releaseDate: 20190501,
+          },
           "70010000000003": { id: "not a title id", name: "Ignored" },
         }),
       );
@@ -889,6 +962,14 @@ describe("web API", () => {
       expect(detail.contents).toMatchObject([
         { titleId: DLC, name: "Bonus Pack", applicationIdSource: "titledb" },
       ]);
+      expect(detail.components.find((component) => component.type === "application")).toMatchObject(
+        {
+          titleId: REAL_BASE,
+          name: "Real Base Game",
+          inLibrary: false,
+          contentMetaId: null,
+        },
+      );
       const catalog = server.devices.getCatalog({});
       expect(catalog.apps).toMatchObject([
         {
@@ -897,6 +978,10 @@ describe("web API", () => {
           d: [[DLC, 0, "Bonus Pack", expect.any(Number), expect.any(Number)]],
         },
       ]);
+      // The catalog dates each content by its contentMetaId, so the tuples stay as they are.
+      expect(catalog.apps[0]?.rd).toEqual({
+        [String(detail.contents[0]?.contentMetaId)]: 20190501,
+      });
 
       const off = await call("PUT", "/titledb", { session, body: { enabled: false } });
       expect(off.json<TitledbStatus>()).toMatchObject({ enabled: false, titleCount: 2 });

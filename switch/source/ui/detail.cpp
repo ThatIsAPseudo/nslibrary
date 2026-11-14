@@ -12,6 +12,7 @@
 #include <atomic>
 #include <memory>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 using namespace brls::literals;
@@ -48,6 +49,57 @@ std::unordered_set<std::string> installedIds() {
 std::string withInstalledMark(const std::string& text, bool installed) {
     if (!installed) return text;
     return text + "   " + "app/detail/on_console"_i18n;
+}
+
+/** "v65536   Released 2018-11-20   12.4 GB": what the server knows about one content. */
+std::string contentLine(const CatalogApp& app, int64_t contentMetaId, uint32_t version, uint64_t size) {
+    std::string line;
+    if (version) line = formatVersion(version);
+    const auto date = app.releaseDates.find(contentMetaId);
+    if (date != app.releaseDates.end()) {
+        const std::string released = formatReleaseDate(date->second);
+        if (!released.empty()) {
+            if (!line.empty()) line += "   ";
+            line += brls::getStr("app/detail/released", released);
+        }
+    }
+    if (!line.empty()) line += "   ";
+    return line + formatSize(size);
+}
+
+std::string expectedComponentLine(const CatalogComponent& component) {
+    std::string line;
+    if (component.version && *component.version) line = formatVersion(*component.version);
+    if (component.releaseDate) {
+        const std::string released = formatReleaseDate(*component.releaseDate);
+        if (!released.empty()) {
+            if (!line.empty()) line += "   ";
+            line += brls::getStr("app/detail/released", released);
+        }
+    }
+    if (!line.empty()) line += "   ";
+    line += component.size ? formatSize(*component.size) : "app/detail/size_unknown"_i18n;
+    return line;
+}
+
+std::string componentTitle(const CatalogComponent& component, const std::string& appName) {
+    if (component.type == "patch") {
+        std::string label = "app/type/patch"_i18n;
+        if (component.version) label += " " + formatVersion(*component.version);
+        return label;
+    }
+    if (component.type == "addon") {
+        return cleanTitleName(component.name.empty() ? component.titleId : component.name);
+    }
+    return cleanTitleName(component.name.empty() ? appName : component.name);
+}
+
+std::vector<const CatalogComponent*> componentsOf(const CatalogApp& app, const std::string& type) {
+    std::vector<const CatalogComponent*> components;
+    for (const auto& component : app.components) {
+        if (component.type == type) components.push_back(&component);
+    }
+    return components;
 }
 
 brls::Label* makeInfoLabel(const std::string& text, float size, const char* color) {
@@ -149,47 +201,89 @@ brls::View* TitleDetailActivity::createContentView() {
 
     const auto installed = installedIds();
 
-    if (app_.base) {
-        const auto base = *app_.base;
-        box->addView(makeHeader("app/detail/base"_i18n));
-        std::string detail = formatSize(base.size);
-        if (base.version) detail = formatVersion(base.version) + "   " + detail;
-        box->addView(makeCell(withInstalledMark(name, summary.baseInstalled), detail,
-            [app = app_, base, name](brls::View*) {
-                confirmInstall(base.contentMetaId, name, base.size, app.requiredSysVersion);
-                return true;
-            }));
-    }
+    if (!app_.components.empty()) {
+        const std::pair<std::string, std::string> sections[] = {
+            {"application", "app/detail/base"_i18n},
+            {"patch", "app/type/patches"_i18n},
+            {"addon", "app/type/addons"_i18n},
+        };
+        for (const auto& section : sections) {
+            const auto components = componentsOf(app_, section.first);
+            if (components.empty()) continue;
+            box->addView(makeHeader(section.second, std::to_string(components.size())));
+            for (const auto* component : components) {
+                const std::string label = componentTitle(*component, name);
+                if (!component->inLibrary || !component->contentMetaId) {
+                    box->addView(makeInfoCell(
+                        label + "   " + "app/detail/missing_library"_i18n,
+                        expectedComponentLine(*component)));
+                    continue;
+                }
 
-    if (!app_.updates.empty()) {
-        box->addView(makeHeader("app/type/patches"_i18n, std::to_string(app_.updates.size())));
-        for (const auto& upd : app_.updates) {
-            const std::string label = "app/type/patch"_i18n + std::string(" ") + formatVersion(upd.version);
-            box->addView(makeCell(withInstalledMark(label, summary.patchVersion >= upd.version && upd.version),
-                formatSize(upd.size), [app = app_, upd, name](brls::View*) {
-                    confirmInstall(upd.contentMetaId, name + " " + formatVersion(upd.version), upd.size,
-                        app.requiredSysVersion);
+                bool onConsole = false;
+                if (component->type == "application") {
+                    onConsole = summary.baseInstalled;
+                } else if (component->type == "patch") {
+                    onConsole = component->version && *component->version &&
+                        summary.patchVersion >= *component->version;
+                } else {
+                    onConsole = installed.count(upperHex(component->titleId)) > 0;
+                }
+                const int64_t contentMetaId = *component->contentMetaId;
+                const uint64_t size = component->size.value_or(0);
+                const std::string installName = component->type == "patch"
+                    ? name + " " + (component->version ? formatVersion(*component->version) : "")
+                    : label;
+                box->addView(makeCell(withInstalledMark(label, onConsole), expectedComponentLine(*component),
+                    [app = app_, contentMetaId, size, installName](brls::View*) {
+                        confirmInstall(contentMetaId, installName, size, app.requiredSysVersion);
+                        return true;
+                    }));
+            }
+        }
+    } else {
+        // Older servers send no component inventory; preserve their library-only detail view.
+        if (app_.base) {
+            const auto base = *app_.base;
+            box->addView(makeHeader("app/detail/base"_i18n));
+            box->addView(makeCell(withInstalledMark(name, summary.baseInstalled),
+                contentLine(app_, base.contentMetaId, base.version, base.size),
+                [app = app_, base, name](brls::View*) {
+                    confirmInstall(base.contentMetaId, name, base.size, app.requiredSysVersion);
                     return true;
                 }));
         }
-    }
 
-    if (!app_.dlc.empty()) {
-        box->addView(makeHeader("app/type/addons"_i18n, std::to_string(app_.dlc.size())));
-        for (const auto& dlc : app_.dlc) {
-            const std::string label = dlc.name.empty() ? upperHex(dlc.titleId) : cleanTitleName(dlc.name);
-            std::string detail = formatSize(dlc.size);
-            if (dlc.version) detail = formatVersion(dlc.version) + "   " + detail;
-            box->addView(makeCell(withInstalledMark(label, installed.count(upperHex(dlc.titleId)) > 0), detail,
-                [dlc, label](brls::View*) {
-                    confirmInstall(dlc.contentMetaId, label, dlc.size);
-                    return true;
-                }));
+        if (!app_.updates.empty()) {
+            box->addView(makeHeader("app/type/patches"_i18n, std::to_string(app_.updates.size())));
+            for (const auto& upd : app_.updates) {
+                const std::string label = "app/type/patch"_i18n + std::string(" ") + formatVersion(upd.version);
+                box->addView(makeCell(withInstalledMark(label, summary.patchVersion >= upd.version && upd.version),
+                    contentLine(app_, upd.contentMetaId, upd.version, upd.size),
+                    [app = app_, upd, name](brls::View*) {
+                        confirmInstall(upd.contentMetaId, name + " " + formatVersion(upd.version), upd.size,
+                            app.requiredSysVersion);
+                        return true;
+                    }));
+            }
         }
-    }
 
-    if (!app_.base && app_.updates.empty() && app_.dlc.empty()) {
-        box->addView(makeEmptyState("app/library/nothing"_i18n));
+        if (!app_.dlc.empty()) {
+            box->addView(makeHeader("app/type/addons"_i18n, std::to_string(app_.dlc.size())));
+            for (const auto& dlc : app_.dlc) {
+                const std::string label = dlc.name.empty() ? upperHex(dlc.titleId) : cleanTitleName(dlc.name);
+                box->addView(makeCell(withInstalledMark(label, installed.count(upperHex(dlc.titleId)) > 0),
+                    contentLine(app_, dlc.contentMetaId, dlc.version, dlc.size),
+                    [dlc, label](brls::View*) {
+                        confirmInstall(dlc.contentMetaId, label, dlc.size);
+                        return true;
+                    }));
+            }
+        }
+
+        if (!app_.base && app_.updates.empty() && app_.dlc.empty()) {
+            box->addView(makeEmptyState("app/library/nothing"_i18n));
+        }
     }
     return frame;
 }

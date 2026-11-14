@@ -53,6 +53,15 @@ TEST(format_firmware_unpacks_the_cnmt_fields) {
     CHECK_EQ(formatFirmware(0), std::string("0.0.0"));
 }
 
+TEST(format_release_date_is_iso_or_nothing) {
+    CHECK_EQ(formatReleaseDate(20170303), std::string("2017-03-03"));
+    CHECK_EQ(formatReleaseDate(20181120), std::string("2018-11-20"));
+    // A date the server could not have meant is left out rather than printed as nonsense.
+    CHECK_EQ(formatReleaseDate(0), std::string(""));
+    CHECK_EQ(formatReleaseDate(20171303), std::string(""));
+    CHECK_EQ(formatReleaseDate(20170300), std::string(""));
+}
+
 TEST(clean_title_name_drops_the_size_the_filename_carried) {
     CHECK_EQ(cleanTitleName("The Witcher 3 Wild Hunt (EU) (28.01 GB)"), std::string("The Witcher 3 Wild Hunt (EU)"));
     CHECK_EQ(cleanTitleName("Undertale (512 MB)"), std::string("Undertale"));

@@ -43,6 +43,9 @@
     "sort_added_asc": "Ajouts les plus anciens"
   },
   "detail": {
+    "released": "Sorti le {}",
+    "missing_library": "Absent de la bibliothèque",
+    "size_unknown": "Taille inconnue",
     "base": "Jeu de base",
     "install_body": "Installer sur quel stockage ?",
     "installed": "Installé",

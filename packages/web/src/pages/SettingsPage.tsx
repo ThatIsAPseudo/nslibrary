@@ -276,7 +276,7 @@ function TitledbSection() {
     <Card
       id="titledb"
       title="Title database"
-      description="Optional. A JSON file or URL you supply, used only for names, which game DLC belongs to, the latest known version, and details to sort and filter the library by: release date, languages, regions, age rating, and players. A URL is refreshed once a day. NSLibrary never downloads games from it."
+      description="Optional. A JSON file or URL you supply, used only for names, which game DLC belongs to, known base/update/DLC components, and details to sort and filter the library by. A URL is refreshed once a day. NSLibrary never downloads games from it."
     >
       <CardBody>
         {titledb.error ? (
@@ -319,11 +319,13 @@ function TitledbSection() {
             onChange={(e) => setSource(e.target.value)}
           />
           <label htmlFor="titledb-versions-source" className="mt-4 block text-sm font-semibold">
-            Update dates (optional)
+            Update versions and dates (optional)
           </label>
           <p id="titledb-versions-hint" className="mt-1 text-sm text-muted">
-            A versions list, URL or file path, giving each update's release date by title ID, for
-            sorting and filtering by when a game was last updated.
+            A versions list, URL or file path, lists known update versions by title ID so the game
+            page can show versions missing from your library. Date strings add release dates; object
+            entries may include `releaseDate` (or `date`) and `size` in bytes. Missing sizes are
+            shown as unknown.
           </p>
           <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
             <input
